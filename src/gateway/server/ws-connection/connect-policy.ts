@@ -34,13 +34,32 @@ export function resolveControlUiAuthPolicy(params: {
 
 export function shouldSkipControlUiPairing(
   policy: ControlUiAuthPolicy,
-  sharedAuthOk: boolean,
+  role: GatewayRole,
   trustedProxyAuthOk = false,
 ): boolean {
   if (trustedProxyAuthOk) {
     return true;
   }
-  return policy.allowBypass && sharedAuthOk;
+  // dangerouslyDisableDeviceAuth is the break-glass path for Control UI
+  // operators. Keep pairing aligned with the missing-device bypass, including
+  // open-auth deployments where there is no shared token/password to prove.
+  return role === "operator" && policy.allowBypass;
+}
+
+export function isTrustedProxyControlUiOperatorAuth(params: {
+  isControlUi: boolean;
+  role: GatewayRole;
+  authMode: string;
+  authOk: boolean;
+  authMethod: string | undefined;
+}): boolean {
+  return (
+    params.isControlUi &&
+    params.role === "operator" &&
+    params.authMode === "trusted-proxy" &&
+    params.authOk &&
+    params.authMethod === "trusted-proxy"
+  );
 }
 
 export type MissingDeviceIdentityDecision =
@@ -64,6 +83,14 @@ export function evaluateMissingDeviceIdentity(params: {
     return { kind: "allow" };
   }
   if (params.isControlUi && params.trustedProxyAuthOk) {
+    return { kind: "allow" };
+  }
+  if (params.isControlUi && params.controlUiAuthPolicy.allowBypass && params.role === "operator") {
+    // dangerouslyDisableDeviceAuth: true — operator has explicitly opted out of
+    // device-identity enforcement for this Control UI.  Allow for operator-role
+    // sessions only; node-role sessions must still satisfy device identity so
+    // that the break-glass flag cannot be abused to admit device-less node
+    // registrations (see #45405 review).
     return { kind: "allow" };
   }
   if (params.isControlUi && !params.controlUiAuthPolicy.allowBypass) {
