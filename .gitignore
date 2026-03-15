@@ -120,3 +120,9 @@ dist/protocol.schema.json
 
 # Synthing
 **/.stfolder/
+
+# Local customizations
+.clawhub/
+extensions/comfyui/
+extensions/searxng/
+skills/cognitive-memory/
